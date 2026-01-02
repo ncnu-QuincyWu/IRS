@@ -2,7 +2,7 @@ DROP TABLE IF EXISTS Student;
 CREATE TABLE Student (
     stuId TEXT,
     stuName TEXT,
-    email TEXT,
+    stuEmail TEXT,
     lineId TEXT,
     nickname TEXT,
     photoUrl TEXT

@@ -110,7 +110,52 @@ def reset():
         cursor.execute(stmt)
     cursor.close()
     conn.close()
-    MAIN = f'<p>Click <a herf={url_for("index")}>here</a> to main menu.'
+    MAIN = f'<p>Click <a href={url_for("index")}>here</a> to main menu.'
     html = 'Database is reset successfully.' + MAIN
     return html
 
+@app.route('/inputStudent')
+def inputStudent():
+    html = '''<form method=post action=importStudent>
+    <textarea name=studentList rows=10 cols=50></textarea>
+    <input type=submit>
+    <ol>
+    <li>Please list students in CSV format.
+    <li>Each line consists of three fields: (1) student_id (2) name (3) email,
+    separated by commas <font color=red>(not blanks)</font>.
+    <li>e.g., "114001,Alice,alice@ms2.kghs.kg.edu.tw"
+    </ol>'''
+    return html
+
+@app.route('/insertStudent', methods=['POST'])
+def insertStudent():
+    students = request.values['studentList'].split()
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    for student in students:
+        sid, name, email = student.split(',')
+        stmt = 'INSERT INTO Student(stuId, stuName, stuEmail) ' \
+            f'VALUES("{sid}", "{name}", "{email}")'
+        print(stmt)
+        cursor.execute(stmt)
+    conn.commit()
+    cursor.close()
+    conn.close()
+    MAIN = f'<p>Click <a href={url_for("index")}>here</a> to main menu.'
+    html = 'Students are imported successfully.' + MAIN
+    return html
+
+@app.route('/listStudent')
+def listStudent():
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    stmt = "SELECT * FROM Student"
+    cursor.execute(stmt)
+    html = '''<table border>\n
+        <tr><th>stuId <th>stuName <th>stuEmail <th>nickname <th>photoUrl\n'''
+    for row in cursor.fetchall():
+        stuId,stuName,stuEmail,lineId,nickname,photoUrl = row
+        html += f'<tr><td>{stuId} <td>{stuName} <td>{stuEmail}' \
+                f'<td>{nickname} <td><img src={photoUrl} width=50>\n'
+    html += '</table>\n'
+    return html
