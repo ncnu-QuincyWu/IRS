@@ -61,8 +61,16 @@ def handle_postback(event):
 # Slash Commands
 SLASH_COMMANDS = ['/HELP - Show this message',
     '/VERSION - Show version',
+    '/ENROLL stuid nickname - Enroll to the class',
+    '/LIST - List enrolled students',
     ]
 VERSION = 'v0.1'
+
+def slashEnroll(stuid, nickname):
+    return "Not implemented yet."
+
+def slashList():
+    return "Not implemented yet."
 
 def slashHelp():
     return '\n'.join(SLASH_COMMANDS)
@@ -95,7 +103,11 @@ def handleSlashCommand(line):
     #print('[DEBUG] cmd=', cmd)
     cmd = cmd.upper()
     if cmd in dSlashCommands:
-        result = dSlashCommands[cmd]['function'](*args)
+        if len(args) == len(dSlashCommands[cmd]['arguments']):
+            result = dSlashCommands[cmd]['function'](*args)
+        else:
+            result = 'Incorrect syntax.  Please use "/HELP" ' \
+                f'to see the number of arguments of /{cmd}.'
     else:
         result = unknownCommand()
     return result
@@ -103,6 +115,7 @@ def handleSlashCommand(line):
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     msg = event.message.text
+    # TODO: logger.debug(lineid, msg)
     if msg[0] == '/':
         result = handleSlashCommand(msg)
         line_bot_api.reply_message(
