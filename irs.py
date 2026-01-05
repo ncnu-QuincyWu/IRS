@@ -1,3 +1,4 @@
+# Interactive Response System
 from flask import Flask, request, abort, render_template, url_for
 import os
 import json
@@ -57,9 +58,58 @@ def handle_postback(event):
     #    TextSendMessage(text=reply_text)
     #)
 
+# Slash Commands
+SLASH_COMMANDS = ['/HELP - Show this message',
+    '/VERSION - Show version',
+    ]
+VERSION = 'v0.1'
+
+def slashHelp():
+    return '\n'.join(SLASH_COMMANDS)
+
+def slashVersion():
+    return VERSION
+
+def unknownCommand():
+    return 'Unknown command.\n' \
+        'Please use "/HELP" to see available slash commands.'
+
+def parseSlashCommand(line):
+    #print('DEBUG: line=', line)
+    line = line.split('-')[0] # delete remarks
+    cmd, *args = line.split()
+    functionName = 'slash' + cmd.capitalize()
+    return {cmd: { "arguments": args, "function": eval(functionName) } }
+    
+def parseCommands(lines):
+    d = {}
+    for line in lines:
+        d = {**d, **parseSlashCommand(line[1:])}
+    return d
+
+dSlashCommands = parseCommands(SLASH_COMMANDS)
+
+def handleSlashCommand(line):
+    ' This handles the command typed by the user, with the leading / removed. '
+    cmd, *args = line[1:].split()
+    #print('[DEBUG] cmd=', cmd)
+    cmd = cmd.upper()
+    if cmd in dSlashCommands:
+        result = dSlashCommands[cmd]['function'](*args)
+    else:
+        result = unknownCommand()
+    return result
+
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     msg = event.message.text
+    if msg[0] == '/':
+        result = handleSlashCommand(msg)
+        line_bot_api.reply_message(
+                event.reply_token,
+                TextSendMessage(text=result))
+
+    return # Function Ends here
     flex_json_string = r'''{
       "type": "bubble", 
       "footer": {
