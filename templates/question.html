@@ -1,0 +1,29 @@
+<table border>
+<tr><th>ID</th><th>Question</th><th>Edit</th><th>Open/Close</th>
+{% for question in questions %}
+<tr><td>{{question[0]}}</td>    {# qid #}
+    <td><pre>{{question[1]}}</pre></td> {# content #}
+    <td><form action='/question/delete/{{question[0]}}'><input
+    type=submit value='Delete'></form></td>
+    <td>{% if qid > 0 %}
+            {% if question[0] == qid %}
+            <button onClick='document.location.href="/question/close/{{question[0]}}";'>Close</button>
+            {% endif %}
+        {% else %}
+            {% if not question[4] %}
+        <button onClick='document.location.href="/question/open/{{question[0]}}";'>OPEN</button>
+            {% endif %}
+        {% endif %}
+    </td>
+    <td>{% if question[3] %}    {# startTime #}
+        <button>View</button>
+        {% endif %}
+    </td>
+</tr>
+{% endfor %}
+<tr><td></td>
+    <form method=post action={{url_for('addQuestion')}}>
+    <td><textarea name=question rols=7 cols=30></textarea></td>
+    <td><input type=submit value='Save'></form></td>
+</tr>
+</table>

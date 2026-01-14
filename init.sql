@@ -10,12 +10,11 @@ CREATE TABLE Student (
 
 DROP TABLE IF EXISTS Question;
 CREATE TABLE Question (
-    qid INTEGER NOT NULL,
+    qid INTEGER PRIMARY KEY AUTOINCREMENT,
     content TEXT,
-    status SMALLINT NOT NULL,    -- 0: not_started 1:start 2:end
+    status SMALLINT NOT NULL,    -- 0:ready 1:open 2:close
     startTime DATETIME,
-    endTime DATETIME,
-    PRIMARY KEY (qid)
+    endTime DATETIME
 );
 
 DROP TABLE IF EXISTS Answer;

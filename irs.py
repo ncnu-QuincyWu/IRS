@@ -10,6 +10,7 @@ app = Flask(__name__)
 DB_FILENAME = 'irs.db'
 key = b'GrCPlx9BTpiCdU2bacCk5Ml7aX7fYxEPD9ceNAEFdrY='
 fernet = Fernet(key)
+currentQuestion = 0
 
 from linebot import (
     LineBotApi, WebhookHandler
@@ -261,7 +262,7 @@ def handle_message(event):
 def index():
     userId = request.cookies.get('userId', '')
     print('[DEBUG]', userId)
-    if authenticated(userId):
+    if userId != '' and authenticated(userId):  # short-cuircuit
         return render_template('index.html')
     else:
         return redirect(url_for('login'))
@@ -351,4 +352,87 @@ def listStudent():
         html += f'<tr><td>{stuId} <td>{stuName} <td>{stuEmail}' \
                 f'<td>{nickname} <td><img src={photoUrl} width=50>\n'
     html += '</table>\n'
+    cursor.close()
+    conn.close()
     return html
+
+@app.route('/question/list')
+def listQuestions():
+    ' List all questions'
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    stmt = "SELECT * FROM Question"
+    cursor.execute(stmt)
+    questions = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return render_template('question.html', questions=questions,
+        qid=currentQuestion)
+
+@app.route('/question/add', methods=['POST'])
+def addQuestion():
+    content = request.values['question']
+    print('[DEBUG]', content)
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    stmt = 'INSERT INTO Question(content, status) ' \
+          f'VALUES("{content}", 0)'
+    cursor.execute(stmt)
+    conn.commit()
+    cursor.close
+    conn.close()
+    return redirect(url_for('listQuestions'))
+
+@app.route('/question/delete/<int:n>')
+def delQuestion(n):
+    ' Delete a question '
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    stmt = f'DELETE FROM Question WHERE qid = {n}'
+    cursor.execute(stmt)
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return redirect(url_for('listQuestions'))
+
+@app.route('/question/edit/<int:n>')
+def editQuestion(n):
+    ' [TODO] Edit a question'
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    stmt = "SELECT * FROM Question"
+    cursor.execute(stmt)
+    cursor.close()
+    conn.close()
+    return ' [TODO] Edit a question'
+
+@app.route('/question/open/<int:n>')
+def openQuestion(n):
+    global currentQuestion
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    stmt = 'UPDATE Question SET status = 1, startTime = datetime("now") ' \
+          f'WHERE qid = {n}'
+    print('[DEBUG]', stmt)
+    cursor.execute(stmt)
+    conn.commit()
+    cursor.close()
+    conn.close()
+    currentQuestion = n
+    return redirect(url_for('listQuestions'))
+
+@app.route('/question/close/<int:n>')
+def closeQuestion(n):
+    global currentQuestion
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    stmt = 'UPDATE Question SET status = 2, endTime = datetime("now") ' \
+          f'WHERE qid = {n}'
+    print('[DEBUG]', stmt)
+    cursor.execute(stmt)
+    conn.commit()
+    cursor.close()
+    conn.close()
+    currentQuestion = 0
+    return redirect(url_for('listQuestions'))
+
