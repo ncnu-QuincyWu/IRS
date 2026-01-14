@@ -66,9 +66,11 @@ def handle_postback(event):
 SLASH_COMMANDS = ['/HELP - Show this message',
     '/VERSION - Show version',
     '/ENROLL stuid nickname - Enroll to the class',
+    '/ENROLLNEW stuId stuName stuEmail nickname - If you are not on the pre-enroll list',
+    '/DISENROLL stuId - Disenroll from that stuId',
     '/LIST - List enrolled students',
     ]
-VERSION = 'v0.2'
+VERSION = 'v0.2a'
 
 def slashList(user_id):
     return "Not implemented yet."
@@ -79,34 +81,100 @@ def slashHelp(user_id):
 def slashVersion(user_id):
     return VERSION
 
-def slashEnroll(user_id, stuid, nickname):
+def slashEnroll(user_id, stuId, nickname):
     conn = sqlite3.connect(DB_FILENAME)
     cursor = conn.cursor()
-    stmt = 'SELECT stuId, stuName, stuEmail, lineId FROM Student ' \
-          f'WHERE stuId = "{stuid}"'
+    stmt = f'SELECT * FROM Student WHERE lineId = "{user_id}"'
     cursor.execute(stmt)
-    row = cursor.fetchone()
-    stuId,stuName,stuEmail,lineId = row
-    if lineId is None:
-        stmt = f'UPDATE Student SET lineId = "{user_id}", ' \
-               f'nickname = "{nickname}" WHERE stuId = "{stuId}"'
-        cursor.execute(stmt)
-        conn.commit()
-        result =  f"{stuId} {stuName} enrolled."
+    rows = cursor.fetchall()
+    if len(rows) > 0:   # That lineId has enrolled
+        result = f'You have enrolled with stuId "{rows[0][0]}". ' \
+            'If that was a mistake, please "/DISENROLL stuId".'
     else:
-        if lineId == user_id:
-            stmt = f'UPDATE Student SET ' \
-                   f'nickname = "{nickname}" WHERE stuId = "{stuId}"'
-            cursor.execute(stmt)
-            conn.commit()
-            result =  f"{stuId} {stuName} enrolled."
-        else:
-            result = f'[Error] The student ID {stuId} was enrolled ' \
-                      'by someone else.'
+        stmt = 'SELECT stuId, stuName, stuEmail, lineId FROM Student ' \
+              f'WHERE stuId = "{stuId}"'
+        cursor.execute(stmt)
+        row = cursor.fetchone()
+        if row is None:
+            result = f'No such stuId ({stuId}). ' \
+                'If you want to register a new student not on the list, ' \
+                'use "/ENROLLNEW stuId stuName stuEmail nickname".'
+        else: # stdId is on the roster
+            stuId,stuName,stuEmail,lineId = row
+            if lineId is None or lineId == '':
+                # This lineId is not associated yet.
+                stmt = f'UPDATE Student SET lineId = "{user_id}", ' \
+                       f'nickname = "{nickname}" WHERE stuId = "{stuId}"'
+                cursor.execute(stmt)
+                conn.commit()
+                result =  f"{stuId} {stuName} enrolled."
+            else:
+                if lineId == user_id:
+                    stmt = f'UPDATE Student SET ' \
+                           f'nickname = "{nickname}" WHERE stuId = "{stuId}"'
+                    cursor.execute(stmt)
+                    conn.commit()
+                    result =  f"{stuId} {stuName} updated with nickname {nickname}."
+                else:
+                    result = f'[Error] The student ID {stuId} was enrolled ' \
+                              'by someone else.'
     cursor.close()
     conn.close()
     return result
 
+def slashEnrollnew(user_id, stuId, stuName, stuEmail, nickname):
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    stmt = f'SELECT * FROM Student WHERE lineId = "{user_id}"' 
+    cursor.execute(stmt)
+    row = cursor.fetchone()
+    if row is not None:
+        result = f'You have enrolled with stuId "{row[0]}".'
+    else:
+        stmt = f'SELECT * FROM Student WHERE stuId = "{stuId}"'
+        row = cursor.fetchone()
+        if row is not None:
+            result = f'The stuid "{stuId}" exists. ' \
+                f'Please use "/ENROLL stuid nickname".'
+        else: # Insert a new record
+           stmt = f'INSERT INTO ' \
+               'Student(stuId, stuName, stuEmail, lineId, nickname)' \
+               f'VALUES("{stuId}", "{stuName}", ' \
+               f'"{stuEmail}", "{user_id}", "{nickname}")'
+           cursor.execute(stmt)
+           conn.commit()
+           result = f'Create a new entry for {stuId} {stuName}.'
+    cursor.close()
+    conn.close()
+    return result
+
+def slashDisenroll(user_id, stuId):
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    stmt = f'SELECT * FROM Student WHERE lineId = "{user_id}"' 
+    cursor.execute(stmt)
+    row = cursor.fetchone()
+    if row is None:
+        result = "You haven't enrolled yet."
+    else:
+        stmt = f'SELECT * FROM Student WHERE lineId = "{user_id}" ' \
+           f'AND stuId = "{stuId}"'
+        cursor.execute(stmt)
+        row = cursor.fetchone()
+        if row is None:
+            result = 'You cannot disenroll for other people.'
+        else: # Correct lineId and stuId
+            stuName = row[1]
+            stmt = f'UPDATE Student SET lineId = "", nickname="" ' \
+                   f'WHERE stuId = "{stuId}"'
+            print('[DEBUG]', stmt)
+            cursor.execute(stmt)
+            conn.commit()
+            result = f"{stuId} {stuName} disenrolled."
+    cursor.close()
+    conn.close()
+    return result
+    
 def unknownCommand():
     return 'Unknown command.\n' \
         'Please use "/HELP" to see available slash commands.'
