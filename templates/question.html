@@ -16,7 +16,7 @@
         {% endif %}
     </td>
     <td>{% if question[3] %}    {# startTime #}
-        <button>View</button>
+        <button onClick='document.location.href="/question/view/{{question[0]}}";'>View</button>
         {% endif %}
     </td>
 </tr>

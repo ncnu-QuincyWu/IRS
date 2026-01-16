@@ -73,6 +73,7 @@ SLASH_COMMANDS = ['/HELP - Show this message',
     '/DISENROLL stuId - Disenroll from that stuId',
     '/LIST - List enrolled students',
     '/MYNOTE - Show the notes which I took',
+    '/WHOAMI - Show my stuId, StuName, and nickname',
     ]
 
 def slashList(user_id):
@@ -92,8 +93,10 @@ def slashList(user_id):
             else f'{x[0]} {x[1]} {x[3]}', rows)))
     cursor.close()
     conn.close()
-    # return "Not implemented yet."
     return result
+
+def slashWhoami(user_id):
+    return "Not implemented yet."
 
 def slashHelp(user_id):
     return '\n'.join(SLASH_COMMANDS)
@@ -256,16 +259,17 @@ def handle_message(event):
             TextSendMessage(text=result))
     else:
         if firstNote.get(user_id, True):
-            result = '''Sorry, not a quick poll right now. 
-                Messages which you write outside sessions of quick
-                polls will saved as your personal notes.
-                You can retrieve them by "/MYNOTE".
-                Your are encouraged to take notes on important keywords,
-                ideas, or your doubts any time in the class.'''
-            line_bot_api.reply_message(
-                event.reply_token,
-                TextSendMessage(text=result))
-            firstNote[user_id] = False
+            if currentQuestion == 0:
+                result = '[Reminder] It is not a quick poll right now. ' \
+                    'Messages which you write outside sessions of quick ' \
+                    'polls will saved as your personal notes. ' \
+                    'You can retrieve them by "/MYNOTE". ' \
+                    'Your are encouraged to take notes on important ' \
+                    'keywords, ideas, or your doubts any time in the class.'
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text=result))
+                firstNote[user_id] = False
         # Store the msg into TABLE Answer
         conn = sqlite3.connect(DB_FILENAME)
         cursor = conn.cursor()
@@ -491,13 +495,36 @@ def closeQuestion(n):
 def viewQuestion(n):
     conn = sqlite3.connect(DB_FILENAME)
     cursor = conn.cursor()
-    stmt = 'UPDATE Question SET status = 2, endTime = datetime("now") ' \
+    stmt = 'SELECT content FROM Question ' \
           f'WHERE qid = {n}'
-    print('[DEBUG]', stmt)
+    #print('[DEBUG]', stmt)
     cursor.execute(stmt)
-    conn.commit()
+    question = cursor.fetchone()[0]
+    stmt = 'SELECT content, lineId FROM Answer ' \
+          f'WHERE qid = {n}'
+    cursor.execute(stmt)
+    answers = cursor.fetchall()
+    html = f'<h1>Quick Poll: {question}</h1>\n'
+    html += '<table border>\n'
+    html += '<tr><th>Answer</th> <th>No Response Yet</th></tr>\n'
+    html += '<tr><td><ul>\n'
+    provideAnswer = {}
+    for content, user_id in answers:
+        html += f'<li>{content}</li>\n'
+        provideAnswer[user_id] = True
+    html += '</ul></td><td><ol>\n'
+    stmt = 'SELECT stuId, stuName, lineId FROM Student ' \
+           'WHERE length(lineId) > 0'
+    cursor.execute(stmt)
+    students = cursor.fetchall()
+    for student in students:
+        lineId = student[2]
+        if lineId not in provideAnswer:
+            html += f'<li>{student[0]} {student[1]}</li>\n'
+    html += '</ol></td></tr>\n'
+    html += '</table>\n'
     cursor.close()
     conn.close()
-    currentQuestion = 0
-    return redirect(url_for('listQuestions'))
+    #raise ValueError('[DEBUG]')
+    return html
 
