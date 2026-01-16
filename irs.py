@@ -7,10 +7,12 @@ import json
 import sqlite3
 
 app = Flask(__name__)
+VERSION = 'v0.3'
 DB_FILENAME = 'irs.db'
 key = b'GrCPlx9BTpiCdU2bacCk5Ml7aX7fYxEPD9ceNAEFdrY='
 fernet = Fernet(key)
 currentQuestion = 0
+firstNote = {}
 
 from linebot import (
     LineBotApi, WebhookHandler
@@ -70,17 +72,46 @@ SLASH_COMMANDS = ['/HELP - Show this message',
     '/ENROLLNEW stuId stuName stuEmail nickname - If you are not on the pre-enroll list',
     '/DISENROLL stuId - Disenroll from that stuId',
     '/LIST - List enrolled students',
+    '/MYNOTE - Show the notes which I took',
     ]
-VERSION = 'v0.2a'
 
 def slashList(user_id):
-    return "Not implemented yet."
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    stmt = f'SELECT stuId, stuName, lineId, nickname FROM Student ' \
+           f'WHERE length(lineId) > 0'
+    cursor.execute(stmt)
+    rows = cursor.fetchall()
+    if len(rows) == 0:
+        result = 'No student enrolled yet.'
+    else:
+        print('[DEBUG]', rows[0][2], user_id, rows[0][2]==user_id)
+        #result = '\n'.join(list(map(lambda x: f'{x[0]} {x[1]} {x[3]}', rows)))
+        result = '\n'.join(list(map(lambda x: \
+            f'{x[0]} {x[1]} {x[3]} (you)' if x[2] == user_id \
+            else f'{x[0]} {x[1]} {x[3]}', rows)))
+    cursor.close()
+    conn.close()
+    # return "Not implemented yet."
+    return result
 
 def slashHelp(user_id):
     return '\n'.join(SLASH_COMMANDS)
 
 def slashVersion(user_id):
     return VERSION
+
+def slashMynote(user_id):
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    stmt = f'SELECT time, content FROM Answer WHERE lineId = "{user_id}" ' \
+           f'AND qid = 0 AND date = DATE("NOW")'
+    cursor.execute(stmt)
+    rows = cursor.fetchall()
+    result = '\n'.join(list(map(lambda x: f'{x[0]} {x[1]}', rows)))
+    cursor.close()
+    conn.close()
+    return result
 
 def slashEnroll(user_id, stuId, nickname):
     conn = sqlite3.connect(DB_FILENAME)
@@ -215,14 +246,38 @@ def handleSlashCommand(user_id, s):
 def handle_message(event):
     msg = event.message.text
     user_id = event.source.user_id
+    global currentQuestion
+    global firstNote
     # TODO: logger.debug(user_id, msg)
     if msg[0] == '/':
         result = handleSlashCommand(user_id, msg)
         line_bot_api.reply_message(
+            event.reply_token,
+            TextSendMessage(text=result))
+    else:
+        if firstNote.get(user_id, True):
+            result = '''Sorry, not a quick poll right now. 
+                Messages which you write outside sessions of quick
+                polls will saved as your personal notes.
+                You can retrieve them by "/MYNOTE".
+                Your are encouraged to take notes on important keywords,
+                ideas, or your doubts any time in the class.'''
+            line_bot_api.reply_message(
                 event.reply_token,
                 TextSendMessage(text=result))
-
+            firstNote[user_id] = False
+        # Store the msg into TABLE Answer
+        conn = sqlite3.connect(DB_FILENAME)
+        cursor = conn.cursor()
+        stmt = f'INSERT INTO Answer VALUES({currentQuestion}, "{user_id}", date("now"), time("now","localtime"), "{msg}")'
+        cursor.execute(stmt)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        # Silently take notes without returning any message
     return # Function Ends here
+
+def broadcast_flex():
     flex_json_string = r'''{
       "type": "bubble", 
       "footer": {

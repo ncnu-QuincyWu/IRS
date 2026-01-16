@@ -20,7 +20,8 @@ CREATE TABLE Question (
 DROP TABLE IF EXISTS Answer;
 CREATE TABLE Answer (
     qid INTEGER NOT NULL,
-    stuID TEXT,
-    timestamp DATETIME,
+    lineId TEXT,
+    date DATE,
+    time TIME,
     content TEXT
 );
