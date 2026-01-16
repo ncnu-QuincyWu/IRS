@@ -3,15 +3,15 @@
 {% for question in questions %}
 <tr><td>{{question[0]}}</td>    {# qid #}
     <td><pre>{{question[1]}}</pre></td> {# content #}
-    <td><form action='/question/delete/{{question[0]}}'><input
-    type=submit value='Delete'></form></td>
+    <td><button
+    onClick='document.location.href="/question/delete/{{question[0]}}";'>Delete</button></td>
     <td>{% if qid > 0 %}
             {% if question[0] == qid %}
             <button onClick='document.location.href="/question/close/{{question[0]}}";'>Close</button>
             {% endif %}
         {% else %}
             {% if not question[4] %}
-        <button onClick='document.location.href="/question/open/{{question[0]}}";'>OPEN</button>
+        <button onClick='document.location.href="/question/open/{{question[0]}}";'>Open</button>
             {% endif %}
         {% endif %}
     </td>

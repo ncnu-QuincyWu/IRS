@@ -5,6 +5,7 @@ from cryptography.fernet import Fernet
 import os
 import json
 import sqlite3
+import requests
 
 app = Flask(__name__)
 VERSION = 'v0.3'
@@ -89,8 +90,8 @@ def slashList(user_id):
         print('[DEBUG]', rows[0][2], user_id, rows[0][2]==user_id)
         #result = '\n'.join(list(map(lambda x: f'{x[0]} {x[1]} {x[3]}', rows)))
         result = '\n'.join(list(map(lambda x: \
-            f'{x[0]} {x[1]} {x[3]} (you)' if x[2] == user_id \
-            else f'{x[0]} {x[1]} {x[3]}', rows)))
+            f'{x[0]} {x[1]} ({x[3]}) (you)' if x[2] == user_id \
+            else f'{x[0]} {x[1]} ({x[3]})', rows)))
     cursor.close()
     conn.close()
     return result
@@ -281,43 +282,6 @@ def handle_message(event):
         # Silently take notes without returning any message
     return # Function Ends here
 
-def broadcast_flex():
-    flex_json_string = r'''{
-      "type": "bubble", 
-      "footer": {
-        "type": "box",
-        "layout": "vertical",
-        "contents": [
-          {
-            "type": "button",
-            "style": "primary",
-            "action": {
-              "type": "postback",
-              "label": "YES",
-              "data": "sid=123&answer=yes",
-              "displayText": "Yes"
-            }
-          },
-          {
-            "type": "button",
-            "style": "secondary",
-            "action": {
-              "type": "postback",
-              "label": "NO",
-              "data": "sid=123&answer=no",
-              "displayText": "No"
-            }
-          }
-        ]
-      }
-    }'''
-    flex_msg = FlexSendMessage(
-        alt_text='Flex Message',
-        contents=json.loads(flex_json_string))
-    line_bot_api.reply_message(
-            event.reply_token,
-            flex_msg)
-
 @app.route('/')
 def index():
     userId = request.cookies.get('userId', '')
@@ -471,10 +435,20 @@ def openQuestion(n):
     print('[DEBUG]', stmt)
     cursor.execute(stmt)
     conn.commit()
+    stmt = 'SELECT content FROM Question ' \
+          f'WHERE qid = {n}'
+    cursor.execute(stmt)
+    question = cursor.fetchone()[0]
+    html = f"""Question {n} broadcast to all users:
+        <ul>
+        <li>{question}
+        </ul>
+        You may <a href='/question/view/{n}'>view the students' answers</a>."""
     cursor.close()
     conn.close()
     currentQuestion = n
-    return redirect(url_for('listQuestions'))
+    broadcast_question(question)
+    return html
 
 @app.route('/question/close/<int:n>')
 def closeQuestion(n):
@@ -493,13 +467,15 @@ def closeQuestion(n):
 
 @app.route('/question/view/<int:n>')
 def viewQuestion(n):
+    # url_for('viewQuestion', n=3) == '/question/view/3'
     conn = sqlite3.connect(DB_FILENAME)
     cursor = conn.cursor()
     stmt = 'SELECT content FROM Question ' \
           f'WHERE qid = {n}'
     #print('[DEBUG]', stmt)
     cursor.execute(stmt)
-    question = cursor.fetchone()[0]
+    question, *options = cursor.fetchone()[0].split('\n')
+    # TODO: Columns for each option
     stmt = 'SELECT content, lineId FROM Answer ' \
           f'WHERE qid = {n}'
     cursor.execute(stmt)
@@ -523,8 +499,155 @@ def viewQuestion(n):
             html += f'<li>{student[0]} {student[1]}</li>\n'
     html += '</ol></td></tr>\n'
     html += '</table>\n'
+    html += f'<a href={url_for("index")}>Return to main menu</a>'
     cursor.close()
     conn.close()
     #raise ValueError('[DEBUG]')
     return html
 
+# Broadcast a message to all users who have added your Official Account
+# as a friend.
+def broadcast_text():
+    # 1. Configuration
+    # Replace 'YOUR_CHANNEL_ACCESS_TOKEN' with your actual token
+    ACCESS_TOKEN = os.getenv('CHANNEL_ACCESS_TOKEN')
+    URL = 'https://api.line.me/v2/bot/message/broadcast'
+    
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {ACCESS_TOKEN}'
+    }
+    # 2. Message Payload
+    # You can send up to 5 messages in a single broadcast
+    data = {
+        "messages": [
+            {
+                "type": "text",
+                "text": "Hello! This is a broadcast message from NCNU_CSIE_Solomon 🚀"
+            }
+        ]
+    }
+    # 3. Execution
+    response = requests.post(URL, headers=headers, data=json.dumps(data))
+    # 4. Result Handling
+    if response.status_code == 200:
+        print("Broadcast sent successfully!")
+    else:
+        print(f"Error: {response.status_code}")
+        print(response.text)
+
+def broadcast_flex():
+    flex_json_string = r'''{
+      "type": "bubble", 
+      "footer": {
+        "type": "box",
+        "layout": "vertical",
+        "contents": [
+          {
+            "type": "button",
+            "style": "primary",
+            "action": {
+              "type": "postback",
+              "label": "YES",
+              "data": "sid=123&answer=yes",
+              "displayText": "Yes"
+            }
+          },
+          {
+            "type": "button",
+            "style": "secondary",
+            "action": {
+              "type": "postback",
+              "label": "NO",
+              "data": "sid=123&answer=no",
+              "displayText": "No"
+            }
+          }
+        ]
+      }
+    }'''
+    flex_msg = FlexSendMessage(
+        alt_text='Flex Message',
+        contents=json.loads(flex_json_string))
+    line_bot_api.reply_message(
+            event.reply_token,
+            flex_msg)
+
+def broadcast_question(q):
+    # 1. Configuration
+    # Replace 'YOUR_CHANNEL_ACCESS_TOKEN' with your actual token
+    ACCESS_TOKEN = os.getenv('CHANNEL_ACCESS_TOKEN')
+    URL = 'https://api.line.me/v2/bot/message/broadcast'
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {ACCESS_TOKEN}'
+    }
+    # 2. Message Payload
+    # '\r\n' must be replaced by '\n'
+    data = json.loads(createFlexJsonString(q.replace('\r', '')))
+    # 3. Execution
+    response = requests.post(URL, headers=headers, data=json.dumps(data))
+    # 4. Result Handling
+    if response.status_code == 200:
+        print("Broadcast sent successfully!")
+    else:
+        print(f"Error: {response.status_code}")
+        print(response.text)
+
+def createContentsJsonString(q):
+    # If q consists of multiple lines, only the first line is the question.
+    # The others are options.
+    question, *options = q.split('\n')
+    contents_json_string = r'''
+                {
+                    "type": "bubble",
+                    "body": {
+                        "type": "box",
+                        "layout": "vertical",
+                        "contents": [
+                            {"type": "text",
+                             "text": "''' + question + '''",
+                             "wrap": true,
+                             "weight": "bold",
+                             "size": "xl"}
+                        ]
+                    }'''
+    if options:
+        contents_json_string += ''',
+                    "footer": {
+                        "type": "box",
+                        "layout": "vertical",
+                        "spacing": "sm",
+                        "contents": ['''
+        for i in range(len(options)):
+            contents_json_string += '''
+                            {
+                                "type": "button",
+                                "style": "primary",
+                                "action": {
+                                    "type": "message",
+                                    "label": "''' + options[i] + '''",
+                                    "text": "''' + options[i] + '''"
+                                }
+                            }'''
+            if i < len(options)-1:
+                contents_json_string += ','
+        contents_json_string += '''
+                        ]
+                    }'''
+    contents_json_string += '''
+                }'''
+    return contents_json_string
+
+def createFlexJsonString(q):
+    contents = createContentsJsonString(q)
+    flex_json_string = r'''{
+        "messages": [
+            {
+                "type": "flex",
+                "altText": "Quick Poll",
+                "contents":''' + contents + '''
+            }
+        ]
+    }'''
+    return flex_json_string
