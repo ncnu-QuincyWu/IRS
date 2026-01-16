@@ -1,0 +1,34 @@
+<head>
+<title>List Students</title>
+<META HTTP-EQUIV="Refresh" CONTENT=300>
+</head>
+
+<body>
+<img src='https://qr-official.line.me/sid/L/565msrqx.png'>
+
+<ol>
+<li>Please scan the above QR code to join the channel.
+<li>Type a slash command to enroll.  The syntax is "/ENROLL stuId
+nickname".
+    <ul>
+    <li>e.g. "/ENROLL 113321028 鋼琴王子"
+    </ul>
+</ol>
+
+<table border>
+<tr><th>stuId <th>stuName <th>stuEmail <th>nickname
+{% for student in students %}
+<tr><td>{{student[0]}} {# stuId #}
+    <td>{{student[1]}} {# stuName #}
+    <td>{{student[2]}} {# stuEmail #} 
+    {% if student[3] %} {# lineId #}
+    <td><img src=https://ipv6.ncnu.org/AutoStatus/Icons/up.png
+    alt='[UP]'> {{student[4]}} {# nickname #}
+    {% else %}
+    <td><img src=https://ipv6.ncnu.org/AutoStatus/Icons/down.png
+    alt='[DOWN]'>
+    {% endif %}
+{% endfor %}
+</table>
+
+</body>

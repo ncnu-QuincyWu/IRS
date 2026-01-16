@@ -85,7 +85,8 @@ def slashVersion(user_id):
 def slashEnroll(user_id, stuId, nickname):
     conn = sqlite3.connect(DB_FILENAME)
     cursor = conn.cursor()
-    stmt = f'SELECT * FROM Student WHERE lineId = "{user_id}"'
+    stmt = f'SELECT * FROM Student WHERE lineId = "{user_id}" ' \
+           f' AND stuId != "{stuId}"'
     cursor.execute(stmt)
     rows = cursor.fetchall()
     if len(rows) > 0:   # That lineId has enrolled
@@ -109,7 +110,7 @@ def slashEnroll(user_id, stuId, nickname):
                 cursor.execute(stmt)
                 conn.commit()
                 result =  f"{stuId} {stuName} enrolled."
-            else:
+            else: # Update his nickname
                 if lineId == user_id:
                     stmt = f'UPDATE Student SET ' \
                            f'nickname = "{nickname}" WHERE stuId = "{stuId}"'
@@ -339,22 +340,16 @@ def insertStudent():
     html = 'Students are imported successfully.' + MAIN
     return html
 
-@app.route('/listStudent')
-def listStudent():
+@app.route('/listStudents')
+def listStudents():
     conn = sqlite3.connect(DB_FILENAME)
     cursor = conn.cursor()
     stmt = "SELECT * FROM Student"
     cursor.execute(stmt)
-    html = '''<table border>\n
-        <tr><th>stuId <th>stuName <th>stuEmail <th>nickname <th>photoUrl\n'''
-    for row in cursor.fetchall():
-        stuId,stuName,stuEmail,lineId,nickname,photoUrl = row
-        html += f'<tr><td>{stuId} <td>{stuName} <td>{stuEmail}' \
-                f'<td>{nickname} <td><img src={photoUrl} width=50>\n'
-    html += '</table>\n'
+    students = cursor.fetchall()
     cursor.close()
     conn.close()
-    return html
+    return render_template('listStudents.html', students=students)
 
 @app.route('/question/list')
 def listQuestions():
@@ -408,6 +403,7 @@ def editQuestion(n):
 
 @app.route('/question/open/<int:n>')
 def openQuestion(n):
+    ' TODO: broadcast the question to all students '
     global currentQuestion
     conn = sqlite3.connect(DB_FILENAME)
     cursor = conn.cursor()
@@ -424,6 +420,20 @@ def openQuestion(n):
 @app.route('/question/close/<int:n>')
 def closeQuestion(n):
     global currentQuestion
+    conn = sqlite3.connect(DB_FILENAME)
+    cursor = conn.cursor()
+    stmt = 'UPDATE Question SET status = 2, endTime = datetime("now") ' \
+          f'WHERE qid = {n}'
+    print('[DEBUG]', stmt)
+    cursor.execute(stmt)
+    conn.commit()
+    cursor.close()
+    conn.close()
+    currentQuestion = 0
+    return redirect(url_for('listQuestions'))
+
+@app.route('/question/view/<int:n>')
+def viewQuestion(n):
     conn = sqlite3.connect(DB_FILENAME)
     cursor = conn.cursor()
     stmt = 'UPDATE Question SET status = 2, endTime = datetime("now") ' \
