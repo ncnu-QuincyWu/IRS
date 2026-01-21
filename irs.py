@@ -530,6 +530,35 @@ def viewQuestion(n):
     html += '</ol></td></tr>\n'
     #raise ValueError('[DEBUG]')
     html += '</table>\n'
+    # Pie Chart
+    if options:
+        data = [['Option', 'Count']] 
+        for i in range(len(options)):
+            data.append([options[i], counts[i]])
+        data.append(['Misc', len(misc)])
+        html += '''
+        <div id="myChart" style="max-width:700px; height:400px"></div>
+<script src="https://www.gstatic.com/charts/loader.js"></script>
+
+<script>
+google.charts.load('current',{packages:['corechart']});
+google.charts.setOnLoadCallback(drawChart);
+
+// Your Function
+function drawChart() {
+// Set Data '''
+        html += f'''
+const data = google.visualization.arrayToDataTable( {data} );'''
+        html += """
+// Set Options
+const options = {  title: '""" + question + "'};\n"
+        html += '''
+
+// Draw
+const chart = new google.visualization.PieChart(document.getElementById('myChart'));
+chart.draw(data, options);
+}
+</script>\n'''
     html += f'<a href={url_for("index")}>Return to main menu</a>'
     return html
 
