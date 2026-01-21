@@ -8,7 +8,7 @@ import sqlite3
 import requests
 
 app = Flask(__name__)
-VERSION = 'v0.3'
+VERSION = 'v0.4'
 DB_FILENAME = 'irs.db'
 key = b'GrCPlx9BTpiCdU2bacCk5Ml7aX7fYxEPD9ceNAEFdrY='
 fernet = Fernet(key)
@@ -87,7 +87,7 @@ def slashList(user_id):
     if len(rows) == 0:
         result = 'No student enrolled yet.'
     else:
-        print('[DEBUG]', rows[0][2], user_id, rows[0][2]==user_id)
+        #print('[DEBUG]', rows[0][2], user_id, rows[0][2]==user_id)
         #result = '\n'.join(list(map(lambda x: f'{x[0]} {x[1]} {x[3]}', rows)))
         result = '\n'.join(list(map(lambda x: \
             f'{x[0]} {x[1]} ({x[3]}) (you)' if x[2] == user_id \
@@ -144,7 +144,7 @@ def slashEnroll(user_id, stuId, nickname):
                        f'nickname = "{nickname}" WHERE stuId = "{stuId}"'
                 cursor.execute(stmt)
                 conn.commit()
-                result =  f"{stuId} {stuName} enrolled."
+                result =  f"{stuId} {stuName} enrolled. 😊"
             else: # Update his nickname
                 if lineId == user_id:
                     stmt = f'UPDATE Student SET ' \
@@ -204,7 +204,7 @@ def slashDisenroll(user_id, stuId):
             stuName = row[1]
             stmt = f'UPDATE Student SET lineId = "", nickname="" ' \
                    f'WHERE stuId = "{stuId}"'
-            print('[DEBUG]', stmt)
+            #print('[DEBUG]', stmt)
             cursor.execute(stmt)
             conn.commit()
             result = f"{stuId} {stuName} disenrolled."
@@ -285,7 +285,7 @@ def handle_message(event):
 @app.route('/')
 def index():
     userId = request.cookies.get('userId', '')
-    print('[DEBUG]', userId)
+    #print('[DEBUG]', userId)
     if userId != '' and authenticated(userId):  # short-cuircuit
         return render_template('index.html')
     else:
@@ -390,7 +390,7 @@ def listQuestions():
 @app.route('/question/add', methods=['POST'])
 def addQuestion():
     content = request.values['question']
-    print('[DEBUG]', content)
+    #print('[DEBUG]', content)
     conn = sqlite3.connect(DB_FILENAME)
     cursor = conn.cursor()
     stmt = 'INSERT INTO Question(content, status) ' \
@@ -432,7 +432,7 @@ def openQuestion(n):
     cursor = conn.cursor()
     stmt = 'UPDATE Question SET status = 1, startTime = datetime("now") ' \
           f'WHERE qid = {n}'
-    print('[DEBUG]', stmt)
+    #print('[DEBUG]', stmt)
     cursor.execute(stmt)
     conn.commit()
     stmt = 'SELECT content FROM Question ' \
@@ -457,7 +457,7 @@ def closeQuestion(n):
     cursor = conn.cursor()
     stmt = 'UPDATE Question SET status = 2, endTime = datetime("now") ' \
           f'WHERE qid = {n}'
-    print('[DEBUG]', stmt)
+    #print('[DEBUG]', stmt)
     cursor.execute(stmt)
     conn.commit()
     cursor.close()
@@ -474,35 +474,63 @@ def viewQuestion(n):
           f'WHERE qid = {n}'
     #print('[DEBUG]', stmt)
     cursor.execute(stmt)
-    question, *options = cursor.fetchone()[0].split('\n')
+    question, *options = cursor.fetchone()[0].split('\r\n')
     # TODO: Columns for each option
     stmt = 'SELECT content, lineId FROM Answer ' \
           f'WHERE qid = {n}'
+    # Get answers
     cursor.execute(stmt)
     answers = cursor.fetchall()
-    html = f'<h1>Quick Poll: {question}</h1>\n'
-    html += '<table border>\n'
-    html += '<tr><th>Answer</th> <th>No Response Yet</th></tr>\n'
-    html += '<tr><td><ul>\n'
-    provideAnswer = {}
-    for content, user_id in answers:
-        html += f'<li>{content}</li>\n'
-        provideAnswer[user_id] = True
-    html += '</ul></td><td><ol>\n'
+    # Get enrolled students
     stmt = 'SELECT stuId, stuName, lineId FROM Student ' \
            'WHERE length(lineId) > 0'
     cursor.execute(stmt)
     students = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    # Preparing the response
+    html = f'<h1>Quick Poll: {question}</h1>\n'
+    html += '<table border>\n'
+    provideAnswer = {}
+    if options:
+        html += '<tr>'
+        for option in options:
+            html += f'<th>{option}</th> '
+        html += '<th>Miscellaneous</th> <th>No Response Yet</th></tr>\n'
+        # Count how many students choose a specific option
+        counts = [0]*len(options)
+        misc = []
+        for content, user_id in answers:
+            #raise(ValueError("[DEBUG] solomon"))
+            try:
+                i = options.index(content)
+                counts[i] += 1
+            except ValueError:  # content not in options
+                misc.append(content)
+            provideAnswer[user_id] = True
+        html += '<tr>'
+        for i in range(len(options)):
+            html += f'<td>{counts[i]}</td> '
+        html += '<td><ul>\n<li>' + \
+                '</li>\n<li>'.join(misc) + \
+                '</li>\n</ul></td>'
+    else: # No options
+        html += '<tr><th>Answer</th> <th>No Response Yet</th></tr>\n'
+        html += '<tr><td><ul>\n'
+        for content, user_id in answers:
+            html += f'<li>{content}</li>\n'
+            provideAnswer[user_id] = True
+        html += '</ul></td>'
+    # List students who haven't provided answers
+    html += '<td><ol>\n'
     for student in students:
         lineId = student[2]
         if lineId not in provideAnswer:
             html += f'<li>{student[0]} {student[1]}</li>\n'
     html += '</ol></td></tr>\n'
+    #raise ValueError('[DEBUG]')
     html += '</table>\n'
     html += f'<a href={url_for("index")}>Return to main menu</a>'
-    cursor.close()
-    conn.close()
-    #raise ValueError('[DEBUG]')
     return html
 
 # Broadcast a message to all users who have added your Official Account
